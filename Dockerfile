@@ -1,6 +1,6 @@
 FROM python:3-alpine
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git gcc libc-dev python3-dev
 
 WORKDIR /opt/redis2local
 COPY requirements.txt ./
