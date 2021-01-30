@@ -16,7 +16,6 @@ class redis2local:
             raise LookupError('Could not found gpio in config')
         if "led" not in self.config["gpio"]:
             raise LookupError('Could not found led in gpio config')
-        self.config = self.config["gpio"]["relay"]
 
         self.redisMB = RedisMB.RedisMB()
         self.thread = None
