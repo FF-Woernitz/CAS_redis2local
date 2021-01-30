@@ -72,7 +72,7 @@ class redis2local:
     def main(self):
         self.log(INFO, "starting...")
         self.logger.info("Setting up GPIO pins")
-        for relay in self.config["gpio"]["relay"]:
+        for k, relay in self.config["gpio"]["relay"].items():
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             GPIO.setup(relay, GPIO.OUT, initial=False)
