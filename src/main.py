@@ -3,7 +3,7 @@ import signal
 import time
 
 import RPi.GPIO as GPIO
-from CASlib import Config, Logger, RedisMB
+from CASlibrary import Config, Logger, RedisMB
 
 
 class ConfigException(Exception):
