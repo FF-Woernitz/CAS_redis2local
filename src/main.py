@@ -32,11 +32,11 @@ class redis2local:
 
         if "action" not in self.config:
             raise ConfigException("No key action in config")
-        if type(self.config["action"]) != list:
+        if type(self.config["action"]) != dict:
             raise ConfigException("Key action in config has the wrong type")
         if len(self.config["action"]) == 0:
             raise ConfigException("No actions defined in config")
-        for action in self.config["action"]:
+        for v, action in self.config["action"].values():
             if "name" not in action:
                 raise ConfigException("One action does not have a name")
             if "type" not in action:
@@ -65,10 +65,10 @@ class redis2local:
         message = self.redisMB.decodeMessage(data)
         self.logger.debug("Received message: {}".format(message))
         action = message['message']['action']
-        for configAction in self.config["action"]:
-            self.logger.debug("Check if action {} requested".format(configAction["name"]))
-            if configAction["name"].upper() == action.upper():
-                self.logger.debug("Action {}, does match the requested name".format(configAction["name"]))
+        for configActionKey, configAction in self.config["action"].values():
+            self.logger.debug("Check if action {} requested".format(configActionKey))
+            if configActionKey.upper() == action.upper():
+                self.logger.debug("Action {}, does match the requested key".format(configActionKey))
                 if configAction["type"].upper() == "LOCAL":
                     self.logger.info("Executing action {}".format(configAction["name"]))
                     self.doAction(configAction, message['message']['data'])
