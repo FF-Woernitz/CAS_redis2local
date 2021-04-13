@@ -1,14 +1,27 @@
 name: Lint
 on: [push]
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps: 
-    - name: Checkout
-      uses: actions/checkout@master
-    - name: lint
-      uses: luke142367/Docker-Lint-Action@v1.0.0
-      with:
-        target: Dockerfile
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  lint-docker:
+    runs-on: ubuntu-18.04
+    name: Linting Docker
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - name: Checking style of Docker
+        uses: luke142367/Docker-Lint-Action@v1.0.0
+        with:
+          target: Dockerfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  lint-python:
+    runs-on: ubuntu-18.04
+    name: Linting Python
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/setup-python@v1
+      - uses: whynothugo/python-linting@master

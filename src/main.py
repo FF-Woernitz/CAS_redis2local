@@ -1,9 +1,13 @@
 #!/usr/bin/python3
-import time, signal
-from datetime import datetime
-from logbook import INFO, NOTICE, WARNING
-from CASlib import Config, Logger, RedisMB
+import signal
+import time
+
 import RPi.GPIO as GPIO
+from CASlib import Config, Logger, RedisMB
+
+
+class ConfigException(Exception):
+    pass
 
 
 class redis2local:
@@ -12,72 +16,82 @@ class redis2local:
     def __init__(self):
         self.logger = Logger.Logger(self.__class__.__name__).getLogger()
         self.config = Config.Config().getConfig()
-        if "gpio" not in self.config:
-            raise LookupError('Could not found gpio in config')
-        if "led" not in self.config["gpio"]:
-            raise LookupError('Could not found led in gpio config')
+
+        self.configCheck()
 
         self.redisMB = RedisMB.RedisMB()
         self.thread = None
         signal.signal(signal.SIGTERM, self.signalhandler)
         signal.signal(signal.SIGHUP, self.signalhandler)
 
-    def log(self, level, log, zvei="No ZVEI"):
-        self.logger.log(level, "[{}]: {}".format(zvei, log))
+    def configCheck(self):
+        if "gpio" not in self.config:
+            raise ConfigException('Could not found gpio key in config')
+        if "relay" not in self.config["gpio"]:
+            raise ConfigException('Could not found relay key in gpio config')
+
+        if "action" not in self.config:
+            raise ConfigException("No key action in config")
+        if type(self.config["action"]) != list:
+            raise ConfigException("Key action in config has the wrong type")
+        if len(self.config["action"]) == 0:
+            raise ConfigException("No actions defined in config")
+        for action in self.config["action"]:
+            if "name" not in action:
+                raise ConfigException("One action does not have a name")
+            if "type" not in action:
+                raise ConfigException(f"Action {action['name']} has no type")
+            if "data" not in action:
+                raise ConfigException(f"Action {action['name']} has data")
+            if "relay" not in action['data']:
+                raise ConfigException(f"Action {action['name']} has no type")
+            if "time" not in action['data']:
+                raise ConfigException(f"Action {action['name']} has data")
+            if action['data']['relay'] not in self.config['gpio']['relay']:
+                raise ConfigException(f"Relay of action {action['name']} not found in gpio relay config")
 
     def signalhandler(self, signum, frame):
-        self.log(INFO, 'Signal handler called with signal {}'.format(signum))
+        self.logger.info('Signal handler called with signal {}'.format(signum))
         try:
             if self.thread is not None:
                 self.thread.kill()
             self.redisMB.exit()
         except:
             pass
-        self.log(NOTICE, 'exiting...')
+        self.logger.notice('exiting...')
         exit()
 
-    def newAlert(self, data):
+    def messageHandler(self, data):
         message = self.redisMB.decodeMessage(data)
-        zvei = message['zvei']
-        self.log(INFO, "Received alarm. UUID: {} (Time: {}) Starting...".format(message['uuid'], str(datetime.now().time())), zvei)
+        self.logger.debug("Received message: {}".format(message))
+        action = message['message']['action']
+        for configAction in self.config["action"]:
+            self.logger.debug("Check if action {} requested".format(configAction["name"]))
+            if configAction["name"].upper() == action.upper():
+                self.logger.debug("Action {}, does match the requested name".format(configAction["name"]))
+                if configAction["type"].upper() == "LOCAL":
+                    self.logger.info("Executing action {}".format(configAction["name"]))
+                    self.doAction(configAction, message['message']['data'])
 
-        trigger = self.getAlertFromConfig(zvei)
-        if not trigger:
-            self.log(WARNING, "Received alarm not in config. Different config for the modules?! Stopping...", zvei)
-            return
-
-        self.log(INFO, "Start alarm tasks...", zvei)
-        self.doAlertThings(zvei)
-        return
-
-    def getAlertFromConfig(self, zvei):
-        for key, config in self.config['trigger'].items():
-            if key == zvei:
-                return config
-        return False
-
-    def doAlertThings(self, zvei):
-        localactions = self.config["localaction"]
-        for la in localactions:
-            if la["type"] == "relay":
-                self.log(INFO,
-                         "Executing local action: {}".format(la["name"]),
-                         zvei)
-                pin = self.config["gpio"]["relay"][la["conf"]["relay"]]
-                GPIO.output(pin, True)
-                time.sleep(la["conf"]["time"])
-                GPIO.output(pin, False)
-        return
+    def doAction(self, action, param):
+        relay = action["data"]["relay"]
+        pin = self.config["gpio"]["relay"][relay]
+        self.logger.info("Setting relay {} (Pin {}) on".format(relay, pin))
+        GPIO.output(pin, True)
+        self.logger.info("Wait for {} seconds".format(action["data"]["time"]))
+        time.sleep(action["data"]["time"])
+        self.logger.info("Setting relay {} (Pin {}) off".format(relay, pin))
+        GPIO.output(pin, False)
 
     def main(self):
-        self.log(INFO, "starting...")
+        self.logger.info("starting...")
         self.logger.info("Setting up GPIO pins")
         for k, relay in self.config["gpio"]["relay"].items():
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             GPIO.setup(relay, GPIO.OUT, initial=False)
         try:
-            self.thread = self.redisMB.subscribeToType("alertZVEI", self.newAlert)
+            self.thread = self.redisMB.subscribeToType("action", self.messageHandler)
             self.thread.join()
         except KeyboardInterrupt:
             self.signalhandler("KeyboardInterrupt", None)
