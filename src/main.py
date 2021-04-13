@@ -36,19 +36,19 @@ class redis2local:
             raise ConfigException("Key action in config has the wrong type")
         if len(self.config["action"]) == 0:
             raise ConfigException("No actions defined in config")
-        for v, action in self.config["action"].values():
+        for key, action in self.config["action"].items():
             if "name" not in action:
-                raise ConfigException("One action does not have a name")
+                raise ConfigException(f"Action {key} does not have a name")
             if "type" not in action:
-                raise ConfigException(f"Action {action['name']} has no type")
+                raise ConfigException(f"Action {action['name']} ({key}) has no type")
             if "data" not in action:
-                raise ConfigException(f"Action {action['name']} has data")
+                raise ConfigException(f"Action {action['name']} ({key}) has data")
             if "relay" not in action['data']:
-                raise ConfigException(f"Action {action['name']} has no type")
+                raise ConfigException(f"Action {action['name']} ({key}) has no type")
             if "time" not in action['data']:
-                raise ConfigException(f"Action {action['name']} has data")
+                raise ConfigException(f"Action {action['name']} ({key}) has data")
             if action['data']['relay'] not in self.config['gpio']['relay']:
-                raise ConfigException(f"Relay of action {action['name']} not found in gpio relay config")
+                raise ConfigException(f"Relay of action {action['name']} ({key}) not found in gpio relay config")
 
     def signalhandler(self, signum, frame):
         self.logger.info('Signal handler called with signal {}'.format(signum))
