@@ -67,7 +67,7 @@ class redis2local:
         message = self.redisMB.decodeMessage(data)
         self.logger.debug("Received message: {}".format(message))
         action = message['message']['action']
-        for configActionKey, configAction in self.config["action"].values():
+        for configActionKey, configAction in self.config["action"].items():
             self.logger.debug("Check if action {} requested".format(configActionKey))
             if configActionKey.upper() == action.upper():
                 self.logger.debug("Action {}, does match the requested key".format(configActionKey))
