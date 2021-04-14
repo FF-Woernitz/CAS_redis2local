@@ -41,12 +41,14 @@ class redis2local:
                 raise ConfigException(f"Action {key} does not have a name")
             if "type" not in action:
                 raise ConfigException(f"Action {action['name']} ({key}) has no type")
+            if action["type"].lower() != "local":
+                break
             if "data" not in action:
-                raise ConfigException(f"Action {action['name']} ({key}) has data")
+                raise ConfigException(f"Action {action['name']} ({key}) has data key")
             if "relay" not in action['data']:
-                raise ConfigException(f"Action {action['name']} ({key}) has no type")
+                raise ConfigException(f"Action {action['name']} ({key}) has no relay")
             if "time" not in action['data']:
-                raise ConfigException(f"Action {action['name']} ({key}) has data")
+                raise ConfigException(f"Action {action['name']} ({key}) has no sleep time")
             if action['data']['relay'] not in self.config['gpio']['relay']:
                 raise ConfigException(f"Relay of action {action['name']} ({key}) not found in gpio relay config")
 
