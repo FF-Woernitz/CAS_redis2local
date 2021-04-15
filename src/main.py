@@ -3,6 +3,7 @@ import signal
 import time
 
 import RPi.GPIO as GPIO
+
 from CASlibrary import Config, Logger, RedisMB
 
 
@@ -21,8 +22,8 @@ class redis2local:
 
         self.redisMB = RedisMB.RedisMB()
         self.thread = None
-        signal.signal(signal.SIGTERM, self.signalhandler)
-        signal.signal(signal.SIGHUP, self.signalhandler)
+        signal.signal(signal.SIGTERM, self.signalHandler)
+        signal.signal(signal.SIGHUP, self.signalHandler)
 
     def configCheck(self):
         if "gpio" not in self.config:
@@ -52,13 +53,13 @@ class redis2local:
             if action['data']['relay'] not in self.config['gpio']['relay']:
                 raise ConfigException(f"Relay of action {action['name']} ({key}) not found in gpio relay config")
 
-    def signalhandler(self, signum, frame):
+    def signalHandler(self, signum, frame):
         self.logger.info('Signal handler called with signal {}'.format(signum))
         try:
             if self.thread is not None:
                 self.thread.kill()
             self.redisMB.exit()
-        except:
+        except BaseException:
             pass
         self.logger.notice('exiting...')
         exit()
@@ -88,15 +89,15 @@ class redis2local:
     def main(self):
         self.logger.info("starting...")
         self.logger.info("Setting up GPIO pins")
-        for k, relay in self.config["gpio"]["relay"].items():
+        for relayPin in self.config["gpio"]["relay"].values():
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
-            GPIO.setup(relay, GPIO.OUT, initial=False)
+            GPIO.setup(relayPin, GPIO.OUT, initial=False)
         try:
             self.thread = self.redisMB.subscribeToType("action", self.messageHandler)
             self.thread.join()
         except KeyboardInterrupt:
-            self.signalhandler("KeyboardInterrupt", None)
+            self.signalHandler("KeyboardInterrupt", None)
 
 
 if __name__ == '__main__':
