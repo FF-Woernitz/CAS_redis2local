@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import signal
 import time
+from dataclasses import dataclass, field
+from queue import PriorityQueue
 
 import RPi.GPIO as GPIO
 
@@ -11,8 +13,29 @@ class ConfigException(Exception):
     pass
 
 
+@dataclass(order=True, init=False)
+class RelayTask:
+    priority: int
+    task: int = field(compare=False)
+    time: int = field(compare=False)
+
+    def __init__(self, task, time=None):
+        if 0 > task > 1:
+            raise Exception("Used wrong argument for parameter task")
+        if task == 1:
+            self.priority = 0
+        elif task == 0:
+            self.priority = 100
+        elif task == 2:
+            if time is None:
+                raise Exception("You must set a wait time for a wait task")
+            self.priority = 50
+            self.time = time
+
+
 class redis2local:
     logger = None
+    relayQueues = []
 
     def __init__(self):
         self.logger = Logger.Logger(self.__class__.__name__).getLogger()
@@ -78,21 +101,18 @@ class redis2local:
 
     def doAction(self, action, param):
         relay = action["data"]["relay"]
-        pin = self.config["gpio"]["relay"][relay]
-        self.logger.info("Setting relay {} (Pin {}) on".format(relay, pin))
-        GPIO.output(pin, True)
-        self.logger.info("Wait for {} seconds".format(action["data"]["time"]))
-        time.sleep(action["data"]["time"])
-        self.logger.info("Setting relay {} (Pin {}) off".format(relay, pin))
-        GPIO.output(pin, False)
+        self.relayQueues[relay].put_nowait(RelayTask(1))
+        self.relayQueues[relay].put_nowait(RelayTask(2, action["data"]["time"]))
+        self.relayQueues[relay].put_nowait(RelayTask(0))
 
     def main(self):
         self.logger.info("starting...")
         self.logger.info("Setting up GPIO pins")
-        for relayPin in self.config["gpio"]["relay"].values():
+        for relayName, relayPin in self.config["gpio"]["relay"].items():
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             GPIO.setup(relayPin, GPIO.OUT, initial=False)
+            self.relayQueues[relayName] = PriorityQueue(maxsize=32)
         try:
             self.thread = self.redisMB.subscribeToType("action", self.messageHandler)
             self.thread.join()
